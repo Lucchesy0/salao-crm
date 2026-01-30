@@ -1,36 +1,60 @@
 version: '3.8'
 
 services:
-  mysql:
+  # Banco de dados MySQL
+  db:
     image: mysql:8.0
     container_name: salao-mysql
+    restart: always
     environment:
       MYSQL_ROOT_PASSWORD: senha123
       MYSQL_DATABASE: salao
+      MYSQL_USER: salao_user
+      MYSQL_PASSWORD: senha123
     ports:
       - "3306:3306"
     volumes:
-      - mysql-data:/var/lib/mysql
+      - mysql_data:/var/lib/mysql
     networks:
       - salao-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-psenha123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Aplicação Node.js + React
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: salao-app
-    depends_on:
-      - mysql
+    restart: always
     ports:
       - "3000:3000"
     environment:
-      DB_HOST: mysql
+      NODE_ENV: production
+      DB_HOST: db
       DB_USER: root
       DB_PASSWORD: senha123
       DB_DATABASE: salao
+      PORT: 3000
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - salao-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
 
 volumes:
-  mysql-data:
+  mysql_data:
+    driver: local
 
 networks:
   salao-network:
+    driver: bridge

@@ -6,8 +6,8 @@ WORKDIR /app
 # Copiar package files
 COPY package*.json ./
 
-# Instalar dependências
-RUN npm ci
+# Instalar dependências (usar install ao invés de ci)
+RUN npm install
 
 # Copiar código fonte
 COPY . .
@@ -20,9 +20,11 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Copiar apenas dependências de produção
+# Copiar package files
 COPY package*.json ./
-RUN npm ci --only=production
+
+# Instalar apenas dependências de produção
+RUN npm install --omit=dev
 
 # Copiar server e build do frontend
 COPY server.js ./

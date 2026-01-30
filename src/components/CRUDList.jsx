@@ -1,7 +1,9 @@
-export default function CRUDList({ items, showValor = false }) {
+export default function CRUDList({ items, showValor = false, onDelete, userRole }) {
   if (!items || items.length === 0) {
     return <div className="empty-state">Nenhum item cadastrado</div>;
   }
+
+  const canDelete = userRole === 'admin' && onDelete;
 
   return (
     <div className="crud-list">
@@ -18,7 +20,22 @@ export default function CRUDList({ items, showValor = false }) {
               </p>
             )}
           </div>
-          <span className="item-id">#{item.id}</span>
+          <div className="item-actions">
+            <span className="item-id">#{item.id}</span>
+            {canDelete && (
+              <button
+                className="btn-delete"
+                onClick={() => {
+                  if (window.confirm(`Tem certeza que deseja deletar "${item.nome}"?`)) {
+                    onDelete(item.id);
+                  }
+                }}
+                title="Deletar"
+              >
+                🗑️
+              </button>
+            )}
+          </div>
         </div>
       ))}
     </div>

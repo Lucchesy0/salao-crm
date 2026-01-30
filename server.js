@@ -4,7 +4,13 @@ const path = require("path");
 const app = express();
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+
+// Servir arquivos estáticos do build (dist) quando em produção
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, 'dist')));
+} else {
+  app.use(express.static(path.join(__dirname, 'public')));
+}
 
 // Helper para gerar códigos curtos (alfa-numéricos)
 function generateProcedureCode(len = 8) {
@@ -62,7 +68,6 @@ function getRoleFromReq(req) {
   try {
     const headerRole = (req.headers['x-user-role'] || req.headers['x-user']) || '';
     if (headerRole) return headerRole.toString();
-    // support body-included user (optional)
     if (req.body && req.body.user && req.body.user.role) return req.body.user.role;
     return '';
   } catch (e) {
@@ -144,7 +149,7 @@ const criarTabelas = async (tentativa = 1) => {
       await connection.execute(query);
     }
 
-    // Garantir que tabelas e collation estão em UTF8MB4 (evita problemas com acentos/ç)
+    // Garantir que tabelas e collation estão em UTF8MB4
     try {
       const tables = ['auxiliares','cabeleireiras','clientes','servicos','registros','horarios'];
       for (const t of tables) {
@@ -158,8 +163,7 @@ const criarTabelas = async (tentativa = 1) => {
       console.log('Erro ao tentar converter charsets das tabelas:', convErr.message);
     }
 
-    // Garantir que a coluna codigo_procedimento exista
-    // Garantir colunas necessárias (compatível com MySQL sem IF NOT EXISTS)
+    // Garantir colunas necessárias
     const ensureColumnExists = async (table, column, definition) => {
       try {
         const [rows] = await connection.execute(
@@ -187,7 +191,6 @@ const criarTabelas = async (tentativa = 1) => {
     } catch (colErr) {
       console.log('Aviso: erro ao garantir colunas em registros:', colErr.message);
     }
-      // (columns ensured above via information_schema checks)
 
     connection.release();
     tabelasCriadas = true;
@@ -208,7 +211,7 @@ app.get("/", (req, res) => {
   res.json({ mensagem: "🚀 Salão funcionando!" });
 });
 
-// LISTAR AUXILIARES
+// ===== AUXILIARES =====
 app.get('/auxiliares', async (req, res) => {
   try {
     const connection = await pool.getConnection();
@@ -221,7 +224,6 @@ app.get('/auxiliares', async (req, res) => {
   }
 });
 
-// CADASTRAR AUXILIAR (admin apenas)
 app.post('/auxiliares', requireAdmin, async (req, res) => {
   console.log("POST /auxiliares recebido:", req.body);
   const { nome } = req.body;
@@ -236,6 +238,22 @@ app.post('/auxiliares', requireAdmin, async (req, res) => {
     res.json({ id: result.insertId, nome });
   } catch (err) {
     console.error("Erro ao inserir:", err);
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+// DELETAR AUXILIAR (admin apenas)
+app.delete('/auxiliares/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await criarTabelas();
+    const connection = await pool.getConnection();
+    await connection.execute('DELETE FROM auxiliares WHERE id = ?', [id]);
+    connection.release();
+    console.log(`Auxiliar ${id} deletado`);
+    res.json({ success: true, id: Number(id), message: 'Auxiliar deletado com sucesso' });
+  } catch (err) {
+    console.error('Erro ao deletar auxiliar:', err);
     res.status(500).json({ erro: err.message });
   }
 });
@@ -271,6 +289,22 @@ app.post('/cabeleireiras', requireAdmin, async (req, res) => {
   }
 });
 
+// DELETAR CABELEIREIRA (admin apenas)
+app.delete('/cabeleireiras/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await criarTabelas();
+    const connection = await pool.getConnection();
+    await connection.execute('DELETE FROM cabeleireiras WHERE id = ?', [id]);
+    connection.release();
+    console.log(`Cabeleireira ${id} deletada`);
+    res.json({ success: true, id: Number(id), message: 'Cabeleireira deletada com sucesso' });
+  } catch (err) {
+    console.error('Erro ao deletar cabeleireira:', err);
+    res.status(500).json({ erro: err.message });
+  }
+});
+
 // ===== CLIENTES =====
 app.get('/clientes', async (req, res) => {
   try {
@@ -298,6 +332,22 @@ app.post('/clientes', requireAdmin, async (req, res) => {
     res.json({ id: result.insertId, nome });
   } catch (err) {
     console.error("Erro ao inserir:", err);
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+// DELETAR CLIENTE (admin apenas)
+app.delete('/clientes/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await criarTabelas();
+    const connection = await pool.getConnection();
+    await connection.execute('DELETE FROM clientes WHERE id = ?', [id]);
+    connection.release();
+    console.log(`Cliente ${id} deletado`);
+    res.json({ success: true, id: Number(id), message: 'Cliente deletado com sucesso' });
+  } catch (err) {
+    console.error('Erro ao deletar cliente:', err);
     res.status(500).json({ erro: err.message });
   }
 });
@@ -333,7 +383,6 @@ app.post('/servicos', requireAdmin, async (req, res) => {
   }
 });
 
-// ATUALIZAR SERVIÇO (admin apenas)
 app.put('/servicos/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { nome, valor } = req.body;
@@ -352,7 +401,6 @@ app.put('/servicos/:id', requireAdmin, async (req, res) => {
   }
 });
 
-// REMOVER SERVIÇO (admin apenas)
 app.delete('/servicos/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
@@ -360,7 +408,8 @@ app.delete('/servicos/:id', requireAdmin, async (req, res) => {
     const connection = await pool.getConnection();
     await connection.execute('DELETE FROM servicos WHERE id = ?', [id]);
     connection.release();
-    res.json({ success: true, id: Number(id) });
+    console.log(`Serviço ${id} deletado`);
+    res.json({ success: true, id: Number(id), message: 'Serviço deletado com sucesso' });
   } catch (err) {
     console.error('Erro ao deletar serviço:', err);
     res.status(500).json({ erro: err.message });
@@ -372,7 +421,6 @@ app.get('/registros', async (req, res) => {
   try {
     await criarTabelas();
     const connection = await pool.getConnection();
-    // Nem todos os bancos antigos podem ter a coluna `horario_agendamento`, evitar ORDER BY por segurança
     const [rows] = await connection.execute('SELECT * FROM registros');
     connection.release();
     res.json(rows || []);
@@ -390,7 +438,6 @@ app.post('/registros', async (req, res) => {
   try {
     await criarTabelas();
     const connection = await pool.getConnection();
-    // gerar codigo único
     let codigo = generateProcedureCode(8);
     let attempts = 0;
     while (attempts < 5) {
@@ -402,7 +449,6 @@ app.post('/registros', async (req, res) => {
         connection.release();
         return res.json({ id: result.insertId, horario_agendamento, cliente_id, status: status || 'agendado', codigo_procedimento: codigo });
       } catch (e) {
-        // se colisão de código, gerar outro
         if (e && e.code === 'ER_DUP_ENTRY') {
           codigo = generateProcedureCode(8);
           attempts++;
@@ -420,7 +466,6 @@ app.post('/registros', async (req, res) => {
   }
 });
 
-// Buscar registro por código de procedimento (visão cliente)
 app.get('/registros/code/:code', async (req, res) => {
   const { code } = req.params;
   try {
@@ -559,13 +604,21 @@ app.get('/dashboard', async (req, res) => {
   }
 });
 
-const PORT = 3000;
+// Servir index.html para qualquer rota não encontrada (SPA routing)
+if (process.env.NODE_ENV === 'production') {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  });
+}
+
+const PORT = process.env.PORT || 3000;
 
 // Criar tabelas ao iniciar e depois escutar na porta
 criarTabelas()
   .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Servidor rodando em http://localhost:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
+      console.log(`🌐 Modo: ${process.env.NODE_ENV || 'development'}`);
     });
   })
   .catch((err) => {

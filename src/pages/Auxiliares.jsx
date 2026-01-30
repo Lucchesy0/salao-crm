@@ -1,46 +1,72 @@
 import { useState, useEffect } from 'react';
-import CRUDForm from '../components/CRUDForm';
-import CRUDList from '../components/CRUDList';
 
-export default function Auxiliares({ onAdd }) {
-  const [items, setItems] = useState([]);
-  const [message, setMessage] = useState(null);
-  const user = JSON.parse(localStorage.getItem('user') || 'null');
-  const isAdmin = user && user.role === 'admin';
+export default function Auxiliares() {
+  const [auxiliares, setAuxiliares] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [novoAuxiliar, setNovoAuxiliar] = useState({
+    nome: '',
+    telefone: '',
+    email: '',
+    senha: ''
+  });
 
   useEffect(() => {
-    carregarItens();
+    carregarAuxiliares();
   }, []);
 
-  const carregarItens = async () => {
+  const carregarAuxiliares = async () => {
     try {
-      const res = await fetch('/auxiliares');
+      const res = await fetch('/api/auxiliares');
       const data = await res.json();
-      setItems(Array.isArray(data) ? data : []);
+      setAuxiliares(data);
     } catch (err) {
-      console.error('Erro:', err);
+      console.error('Erro ao carregar:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSubmit = async (nome) => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (isAdmin) headers['x-user-role'] = user.role;
-      const res = await fetch('/auxiliares', {
+      const res = await fetch('/api/auxiliares', {
         method: 'POST',
-        headers,
-        body: JSON.stringify({ nome })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(novoAuxiliar)
       });
-
-      if (!res.ok) throw new Error('Erro ao cadastrar');
-
-      const newItem = await res.json();
-      setMessage({ text: `✓ "${newItem.nome}" cadastrado!`, type: 'success' });
-      setTimeout(() => setMessage(null), 3000);
-      carregarItens();
-      onAdd();
+      
+      if (res.ok) {
+        alert('Auxiliar cadastrado com sucesso!');
+        setNovoAuxiliar({ nome: '', telefone: '', email: '', senha: '' });
+        setMostrarForm(false);
+        carregarAuxiliares();
+      } else {
+        alert('Erro ao cadastrar auxiliar');
+      }
     } catch (err) {
-      setMessage({ text: `Erro: ${err.message}`, type: 'error' });
+      console.error('Erro:', err);
+      alert('Erro ao cadastrar');
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('Deseja realmente excluir este auxiliar?')) return;
+    
+    try {
+      const res = await fetch(`/api/auxiliares/${id}`, {
+        method: 'DELETE'
+      });
+      
+      if (res.ok) {
+        alert('Auxiliar excluído com sucesso!');
+        carregarAuxiliares();
+      } else {
+        alert('Erro ao excluir auxiliar');
+      }
+    } catch (err) {
+      console.error('Erro:', err);
+      alert('Erro ao excluir');
     }
   };
 
@@ -48,23 +74,100 @@ export default function Auxiliares({ onAdd }) {
     <div className="page-container">
       <div className="page-header">
         <h1>Auxiliares</h1>
+        <button 
+          className="btn-primary"
+          onClick={() => setMostrarForm(!mostrarForm)}
+        >
+          {mostrarForm ? 'Cancelar' : '+ Adicionar Auxiliar'}
+        </button>
       </div>
 
-      {message && <div className={`message ${message.type}`}>{message.text}</div>}
-
-      <div className="crud-layout">
-        {isAdmin && (
-          <div className="form-section">
-            <h2 className="section-title">Novo Auxiliar</h2>
-            <CRUDForm fields={[{ name: 'nome', label: 'Nome', type: 'text' }]} onSubmit={handleSubmit} />
-          </div>
-        )}
-
-        <div className="list-section">
-          <h2 className="section-title">Lista</h2>
-          <CRUDList items={items} />
+      {mostrarForm && (
+        <div className="form-card">
+          <h2>Novo Auxiliar</h2>
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label>Nome completo</label>
+              <input
+                type="text"
+                value={novoAuxiliar.nome}
+                onChange={(e) => setNovoAuxiliar({...novoAuxiliar, nome: e.target.value})}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Telefone</label>
+              <input
+                type="tel"
+                value={novoAuxiliar.telefone}
+                onChange={(e) => setNovoAuxiliar({...novoAuxiliar, telefone: e.target.value})}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>E-mail</label>
+              <input
+                type="email"
+                value={novoAuxiliar.email}
+                onChange={(e) => setNovoAuxiliar({...novoAuxiliar, email: e.target.value})}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Senha</label>
+              <input
+                type="password"
+                value={novoAuxiliar.senha}
+                onChange={(e) => setNovoAuxiliar({...novoAuxiliar, senha: e.target.value})}
+                required
+              />
+            </div>
+            <button type="submit" className="btn-primary">Cadastrar</button>
+          </form>
         </div>
-      </div>
+      )}
+
+      {loading ? (
+        <div className="loading">Carregando...</div>
+      ) : (
+        <div className="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Telefone</th>
+                <th>E-mail</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {auxiliares.length === 0 ? (
+                <tr>
+                  <td colSpan="4" className="empty-state">
+                    Nenhum auxiliar cadastrado
+                  </td>
+                </tr>
+              ) : (
+                auxiliares.map((aux) => (
+                  <tr key={aux.id}>
+                    <td>{aux.nome}</td>
+                    <td>{aux.telefone}</td>
+                    <td>{aux.email}</td>
+                    <td>
+                      <button 
+                        className="btn-delete"
+                        onClick={() => handleDelete(aux.id)}
+                      >
+                        Excluir
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

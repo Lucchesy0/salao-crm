@@ -35,12 +35,35 @@ export default function Servicos({ onAdd }) {
       if (!res.ok) throw new Error('Erro ao cadastrar');
 
       const newItem = await res.json();
-      setMessage({ text: `✓ "${newItem.nome}" cadastrado!`, type: 'success' });
+      setMessage({ text: `✓ "${newItem.nome}" cadastrado com sucesso!`, type: 'success' });
       setTimeout(() => setMessage(null), 3000);
       carregarItens();
       onAdd();
     } catch (err) {
-      setMessage({ text: `Erro: ${err.message}`, type: 'error' });
+      setMessage({ text: `✗ Erro: ${err.message}`, type: 'error' });
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (isAdmin) headers['x-user-role'] = user.role;
+      
+      const res = await fetch(`/servicos/${id}`, {
+        method: 'DELETE',
+        headers
+      });
+
+      if (!res.ok) throw new Error('Erro ao deletar');
+
+      setMessage({ text: '✓ Serviço deletado com sucesso!', type: 'success' });
+      setTimeout(() => setMessage(null), 3000);
+      carregarItens();
+      onAdd();
+    } catch (err) {
+      setMessage({ text: `✗ Erro ao deletar: ${err.message}`, type: 'error' });
+      setTimeout(() => setMessage(null), 3000);
     }
   };
 
@@ -48,6 +71,7 @@ export default function Servicos({ onAdd }) {
     <div className="page-container">
       <div className="page-header">
         <h1>Serviços</h1>
+        <p>Gerencie os serviços oferecidos pelo salão</p>
       </div>
 
       {message && <div className={`message ${message.type}`}>{message.text}</div>}
@@ -61,8 +85,13 @@ export default function Servicos({ onAdd }) {
         )}
 
         <div className="list-section">
-          <h2 className="section-title">Lista</h2>
-          <CRUDList items={items} showValor={true} />
+          <h2 className="section-title">Lista de Serviços</h2>
+          <CRUDList 
+            items={items} 
+            showValor={true}
+            userRole={user?.role}
+            onDelete={handleDelete}
+          />
         </div>
       </div>
     </div>

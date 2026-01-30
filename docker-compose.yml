@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: salao-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: senha123
+      MYSQL_DATABASE: salao
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - salao-network
+
+  app:
+    build: .
+    container_name: salao-app
+    depends_on:
+      - mysql
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: mysql
+      DB_USER: root
+      DB_PASSWORD: senha123
+      DB_DATABASE: salao
+    networks:
+      - salao-network
+
+volumes:
+  mysql-data:
+
+networks:
+  salao-network:
